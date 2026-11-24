@@ -34,45 +34,52 @@ samp_proto.fields = {
 -- Справочники ID пакетов и RPC SA-MP
 -- ==========================================
 local packet_names = {}
-packet_names[11] = "ID_CONNECTION_REQUEST"
-packet_names[12] = "ID_AUTH_KEY"
-packet_names[19] = "ID_NEW_INCOMING_CONNECTION"
-packet_names[20] = "ID_RPC"
-packet_names[24] = "ID_OPEN_CONNECTION_REQUEST"
-packet_names[25] = "ID_OPEN_CONNECTION_REPLY"
-packet_names[26] = "ID_OPEN_CONNECTION_COOKIE"
-packet_names[34] = "ID_CONNECTION_REQUEST_ACCEPTED"
-packet_names[34] = "ID_CONNECTION_REQUEST_ACCEPTED"
-packet_names[35] = "ID_CONNECTION_ATTEMPT_FAILED"
-packet_names[36] = "ID_NO_FREE_INCOMING_CONNECTIONS"
-packet_names[37] = "ID_CONNECTION_BANNED"
-packet_names[0] = "ID_INTERNAL_PING"
-packet_names[1] = "ID_PING"
-packet_names[2] = "ID_PING_OPEN_CONNECTIONS"
-packet_names[3] = "ID_CONNECTED_PONG"
-packet_names[4] = "ID_CONNECTION_REQUEST"
-packet_names[5] = "ID_CONNECTION_REQUEST_ACCEPTED"
-packet_names[6] = "ID_SECURED_CONNECTION_RESPONSE"
-packet_names[7] = "ID_SECURED_CONNECTION_CONFIRMATION"
-packet_names[23] = "ID_CONNECTED_PING"
-packet_names[24] = "ID_OPEN_CONNECTION_REQUEST"
-packet_names[30] = "ID_NEW_INCOMING_CONNECTION"
-packet_names[32] = "ID_DISCONNECTION_NOTIFICATION"
-packet_names[33] = "ID_DETECT_LOST_CONNECTIONS"
-packet_names[40] = "ID_TIMESTAMP"
-packet_names[200] = "ID_VEHICLE_SYNC (InCar)"
-packet_names[201] = "ID_RCON_COMMAND"
-packet_names[202] = "ID_RCON_RESPONCE"
-packet_names[203] = "ID_AIM_SYNC"
-packet_names[204] = "ID_WEAPONS_UPDATE"
-packet_names[205] = "ID_STATS_UPDATE"
-packet_names[206] = "ID_BULLET_SYNC"
-packet_names[207] = "ID_PLAYER_SYNC (OnFoot)"
-packet_names[208] = "ID_MARKERS_SYNC"
-packet_names[209] = "ID_UNOCCUPIED_SYNC"
-packet_names[210] = "ID_TRAILER_SYNC"
-packet_names[211] = "ID_PASSENGER_SYNC"
-packet_names[212] = "ID_SPECTATOR_SYNC"
+local packet_names = {
+    [6]   = "ID_INTERNAL_PING",
+    [7]   = "ID_PING",
+    [8]   = "ID_PING_OPEN_CONNECTIONS",
+    [9]   = "ID_CONNECTED_PONG",
+    [10]  = "ID_REQUEST_STATIC_DATA",
+    [11]  = "ID_CONNECTION_REQUEST",
+    [12]  = "ID_AUTH_KEY",
+    [17]  = "ID_RPC_MAPPING",
+    [20]  = "ID_RPC",
+    [23]  = "ID_DETECT_LOST_CONNECTIONS",
+    [24]  = "ID_OPEN_CONNECTION_REQUEST",
+    [25]  = "ID_OPEN_CONNECTION_REPLY",
+    [26]  = "ID_OPEN_CONNECTION_COOKIE",
+    [29]  = "ID_CONNECTION_ATTEMPT_FAILED",
+    [30]  = "ID_NEW_INCOMING_CONNECTION",
+    [31]  = "ID_NO_FREE_INCOMING_CONNECTIONS",
+    [32]  = "ID_DISCONNECTION_NOTIFICATION",
+    [33]  = "ID_CONNECTION_LOST",
+    [34]  = "ID_CONNECTION_REQUEST_ACCEPTED",
+    [35]  = "ID_CONNECTION_FAILED",
+    [36]  = "ID_CONNECTION_BANNED",
+    [37]  = "ID_INVALID_PASSWORD",
+    [38]  = "ID_MODIFIED_PACKET",
+    [40]  = "ID_TIMESTAMP",
+    [41]  = "ID_RECEIVED_STATIC_DATA",
+    [42]  = "ID_REMOTE_DISCONNECTION_NOTIFICATION",
+    [43]  = "ID_REMOTE_CONNECTION_LOST",
+    [44]  = "ID_REMOTE_NEW_INCOMING_CONNECTION",
+    [45]  = "ID_REMOTE_EXISTING_CONNECTION",
+    [46]  = "ID_REMOTE_STATIC_DATA",
+    [200] = "ID_VEHICLE_SYNC (InCar)",
+    [201] = "ID_RCON_COMMAND",
+    [202] = "ID_RCON_RESPONCE",
+    [203] = "ID_AIM_SYNC",
+    [204] = "ID_WEAPONS_UPDATE",
+    [205] = "ID_STATS_UPDATE",
+    [206] = "ID_BULLET_SYNC",
+    [207] = "ID_PLAYER_SYNC (OnFoot)",
+    [208] = "ID_MARKERS_SYNC",
+    [209] = "ID_UNOCCUPIED_SYNC",
+    [210] = "ID_TRAILER_SYNC",
+    [211] = "ID_PASSENGER_SYNC",
+    [212] = "ID_SPECTATOR_SYNC"
+}
+
 
 local rpc_names = {}
 rpc_names[11] = "SetPlayerName"
@@ -723,6 +730,13 @@ end
 --                 "str8", "str16", "str32", "quat", "vec3", "hp_ap_8", "hp_ap_16"
 
 local packet_schemas_out = {
+    [6] = {
+        { "Send Ping Time", "u32" }
+    },
+    [9] = {
+        { "Send Ping Time", "u32" },
+        { "Send Pong Time", "u32" }
+    },
     [12] = {
         { "Auth Key", "str8" }
     },
@@ -816,6 +830,20 @@ local packet_schemas_out = {
 }
 
 local packet_schemas_in = {
+    [6] = {
+        { "Send Ping Time", "u32" }
+    },
+    [9] = {
+        { "Send Ping Time", "u32" },
+        { "Send Pong Time", "u32" }
+    },
+    [17] = {
+        { "RPC Index", "u8" }
+    },
+    [30] = {
+        { "Binary Address", "hex32" },
+        { "Port",           "u16" }
+    },
     [12] = {
         { "Auth Challenge", "str8" }
     },
