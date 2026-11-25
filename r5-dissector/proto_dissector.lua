@@ -954,20 +954,6 @@ local packet_schemas_out = {
         { "Pos X",           "float" },
         { "Pos Y",           "float" },
         { "Pos Z",           "float" }
-    }
-    -- ID 203: Входящий ID_AIM_SYNC (2 байта Player ID + 31 байт AimData)
-    = {
-        { "Player ID",       "u16" },
-        { "Cam Mode",        "u8" },
-        { "Cam Front X",     "float" },
-        { "Cam Front Y",     "float" },
-        { "Cam Front Z",     "float" },
-        { "Cam Pos X",       "float" },
-        { "Cam Pos Y",       "float" },
-        { "Cam Pos Z",       "float" },
-        { "Aim Z",           "float" },
-        { "Zoom / WepState", "aim_zoom" },
-        { "Aspect Ratio",    "u8" }
     },
 }
 
@@ -994,12 +980,27 @@ local packet_schemas_in = {
         { "Client Port",     "u16" },
         { "Your Player ID",  "u16" },
         { "Challenge Key",   "hex32" }
+    },
+    -- ID 203: Входящий ID_AIM_SYNC (2 байта Player ID + 31 байт AimData)
+    [203] = {
+        { "Player ID",       "u16" },
+        { "Cam Mode",        "u8" },
+        { "Cam Front X",     "float" },
+        { "Cam Front Y",     "float" },
+        { "Cam Front Z",     "float" },
+        { "Cam Pos X",       "float" },
+        { "Cam Pos Y",       "float" },
+        { "Cam Pos Z",       "float" },
+        { "Aim Z",           "float" },
+        { "Zoom / WepState", "aim_zoom" },
+        { "Aspect Ratio",    "u8" }
     }
 }
 
 
 
 local rpc_names_out = {
+    [62] = "DialogResponse",
     [25]  = "ClientJoin",
     [50]  = "ServerCommand",
     [52]  = "Spawn",
@@ -1014,6 +1015,7 @@ local rpc_names_out = {
 
 -- Схемы RPC (работают для входящих и исходящих RPC!)
 local rpc_schemas = {
+    
     -- #68: SetSpawnInfo (установка параметров спавна игрока)
     [68] = {
         { "Team",          "u8" },
@@ -1707,6 +1709,37 @@ local function decode_incoming_sync(tvb, pkt_id, parent_tree)
             player_id, veh_id, seat_id, hp, px, py, pz)
     end
 
+    -- 7. ВХОДЯЩИЙ MARKERS SYNC (ID 208 — маркеры игроков на радаре)
+    if pkt_id == 208 then
+        local count = br:read_u32_le()
+        if not count or count > 1004 then return nil end
+
+        tree:add(f_field_uint, count):set_text(string.format("Players Count: %d", count))
+
+        local active_count = 0
+        for i = 1, count do
+            local player_id = br:read_u16_le()
+            local is_active = br:read_bit()
+            if player_id == nil or is_active == nil then break end
+
+            if is_active == 1 then
+                local px = br:read_i16_le()
+                local py = br:read_i16_le()
+                local pz = br:read_i16_le()
+                if not pz then break end
+                active_count = active_count + 1
+                tree:add(f_field_str, string.format("ID=%d (%d, %d, %d)", player_id, px, py, pz)):set_text(
+                    string.format("Marker #%d: Player ID=%d | Pos=(%d, %d, %d)", i, player_id, px, py, pz))
+            else
+                tree:add(f_field_uint, player_id):set_text(
+                    string.format("Marker #%d: Player ID=%d (Hidden / Inactive)", i, player_id))
+            end
+        end
+
+        return string.format("Markers: %d total (%d active)", count, active_count)
+    end
+
+
 
     return nil
 end
@@ -2015,7 +2048,7 @@ function samp_proto.dissector(buffer, pinfo, tree)
                         frame_tree:add(f_packet_name, pkt_name):set_generated()
 
                         local sync_details = nil
-                        if fr.pkt_id == 200 or fr.pkt_id == 206 or fr.pkt_id == 207 or fr.pkt_id == 209 or fr.pkt_id == 210 or fr.pkt_id == 211 then
+                        if fr.pkt_id == 200 or fr.pkt_id == 206 or fr.pkt_id == 207 or fr.pkt_id == 208 or fr.pkt_id == 209 or fr.pkt_id == 210 or fr.pkt_id == 211 then
                             sync_details = decode_incoming_sync(fr.frame_tvb, fr.pkt_id, frame_tree)
                         elseif packet_schemas_in[fr.pkt_id] then
                             sync_details = decode_by_schema(fr.frame_tvb, 8, fr.frame_tvb:len() * 8, packet_schemas_in[fr.pkt_id], frame_tree)
