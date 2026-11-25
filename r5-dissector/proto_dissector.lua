@@ -777,7 +777,7 @@ local packet_schemas_out = {
         { "Send Ping Time", "u32" },
         { "Send Pong Time", "u32" }
     },
-    [12] = {
+       [12] = {
         { "Auth Key", "str8" }
     },
     [19] = {
@@ -788,7 +788,87 @@ local packet_schemas_out = {
         { "Send Timestamp",  "u32" },
         { "Recv Timestamp",  "u32" }
     },
-    -- ID 207: Исходящий OnFootSync (ровно 68 байт после ID)
+    -- ID 200: ID_DRIVER_SYNC (InCar)
+    [200] = {
+        { "Vehicle ID",         "u16" },
+        { "Left/Right Keys",    "u16" },
+        { "Up/Down Keys",       "u16" },
+        { "Keys",               "u16" },
+        { "Quat W",             "float" },
+        { "Quat X",             "float" },
+        { "Quat Y",             "float" },
+        { "Quat Z",             "float" },
+        { "Pos X",              "float" },
+        { "Pos Y",              "float" },
+        { "Pos Z",              "float" },
+        { "Vel X",              "float" },
+        { "Vel Y",              "float" },
+        { "Vel Z",              "float" },
+        { "Vehicle Health",     "float" },
+        { "Player Health",      "u8" },
+        { "Player Armour",      "u8" },
+        { "Weapon / AddKey",    "wep_key" },
+        { "Siren State",        "u8" },
+        { "Landing Gear State", "u8" },
+        { "Trailer ID",         "u16" },
+        { "Train/Bike/Hydra",   "float" }
+    },
+    -- ID 201: ID_RCON_COMMAND
+    [201] = {
+        { "Command", "str32" }
+    },
+    -- ID 203: ID_AIM_SYNC
+    [203] = {
+        { "Cam Mode",        "u8" },
+        { "Cam Front X",     "float" },
+        { "Cam Front Y",     "float" },
+        { "Cam Front Z",     "float" },
+        { "Cam Pos X",       "float" },
+        { "Cam Pos Y",       "float" },
+        { "Cam Pos Z",       "float" },
+        { "Aim Z",           "float" },
+        { "Zoom / WepState", "aim_zoom" },
+        { "Aspect Ratio",    "u8" }
+    },
+    -- ID 204: ID_WEAPONS_UPDATE
+    [204] = {
+        { "Target Player", "u16" },
+        { "Target Actor",  "u16" },
+        { "Slot 0", "u8" }, { "Weapon 0", "u8" }, { "Ammo 0", "u16" },
+        { "Slot 1", "u8" }, { "Weapon 1", "u8" }, { "Ammo 1", "u16" },
+        { "Slot 2", "u8" }, { "Weapon 2", "u8" }, { "Ammo 2", "u16" },
+        { "Slot 3", "u8" }, { "Weapon 3", "u8" }, { "Ammo 3", "u16" },
+        { "Slot 4", "u8" }, { "Weapon 4", "u8" }, { "Ammo 4", "u16" },
+        { "Slot 5", "u8" }, { "Weapon 5", "u8" }, { "Ammo 5", "u16" },
+        { "Slot 6", "u8" }, { "Weapon 6", "u8" }, { "Ammo 6", "u16" },
+        { "Slot 7", "u8" }, { "Weapon 7", "u8" }, { "Ammo 7", "u16" },
+        { "Slot 8", "u8" }, { "Weapon 8", "u8" }, { "Ammo 8", "u16" },
+        { "Slot 9", "u8" }, { "Weapon 9", "u8" }, { "Ammo 9", "u16" },
+        { "Slot 10", "u8" }, { "Weapon 10", "u8" }, { "Ammo 10", "u16" },
+        { "Slot 11", "u8" }, { "Weapon 11", "u8" }, { "Ammo 11", "u16" },
+        { "Slot 12", "u8" }, { "Weapon 12", "u8" }, { "Ammo 12", "u16" }
+    },
+    -- ID 205: ID_STATS_UPDATE
+    [205] = {
+        { "Money",       "i32" },
+        { "Drunk Level", "i32" }
+    },
+    -- ID 206: ID_BULLET_SYNC
+    [206] = {
+        { "Hit Type",  "u8" },
+        { "Hit ID",    "u16" },
+        { "Origin X",  "float" },
+        { "Origin Y",  "float" },
+        { "Origin Z",  "float" },
+        { "Hit Pos X", "float" },
+        { "Hit Pos Y", "float" },
+        { "Hit Pos Z", "float" },
+        { "Offset X",  "float" },
+        { "Offset Y",  "float" },
+        { "Offset Z",  "float" },
+        { "Weapon ID", "u8" }
+    },
+    -- ID 207: ID_ONFOOT_SYNC
     [207] = {
         { "Left/Right Keys", "u16" },
         { "Up/Down Keys",    "u16" },
@@ -802,7 +882,7 @@ local packet_schemas_out = {
         { "Quat Z",          "float" },
         { "Health",          "u8" },
         { "Armour",          "u8" },
-        { "Weapon / Key",    "u8" },
+        { "Weapon / AddKey", "wep_key" },
         { "Special Action",  "u8" },
         { "Vel X",           "float" },
         { "Vel Y",           "float" },
@@ -811,35 +891,73 @@ local packet_schemas_out = {
         { "Surf Offset Y",   "float" },
         { "Surf Offset Z",   "float" },
         { "Surf Vehicle ID", "u16" },
-        { "Anim ID",         "u16" },
-        { "Anim Flags",      "u16" }
+        { "Animation ID",    "i16" },
+        { "Animation Flags", "i16" }
     },
-    -- ID 200: Исходящий InCarSync (63 байта после ID)
-    [200] = {
+    -- ID 209: ID_UNOCCUPIED_SYNC
+    [209] = {
+        { "Vehicle ID",     "u16" },
+        { "Seat ID",        "u8" },
+        { "Roll X",         "float" },
+        { "Roll Y",         "float" },
+        { "Roll Z",         "float" },
+        { "Direction X",    "float" },
+        { "Direction Y",    "float" },
+        { "Direction Z",    "float" },
+        { "Pos X",          "float" },
+        { "Pos Y",          "float" },
+        { "Pos Z",          "float" },
+        { "Vel X",          "float" },
+        { "Vel Y",          "float" },
+        { "Vel Z",          "float" },
+        { "Angular Vel X",  "float" },
+        { "Angular Vel Y",  "float" },
+        { "Angular Vel Z",  "float" },
+        { "Vehicle Health", "float" }
+    },
+    -- ID 210: ID_TRAILER_SYNC
+    [210] = {
+        { "Trailer ID",    "u16" },
+        { "Pos X",         "float" },
+        { "Pos Y",         "float" },
+        { "Pos Z",         "float" },
+        { "Quat W",        "float" },
+        { "Quat X",        "float" },
+        { "Quat Y",        "float" },
+        { "Quat Z",        "float" },
+        { "Vel X",         "float" },
+        { "Vel Y",         "float" },
+        { "Vel Z",         "float" },
+        { "Angular Vel X", "float" },
+        { "Angular Vel Y", "float" },
+        { "Angular Vel Z", "float" }
+    },
+    -- ID 211: ID_PASSENGER_SYNC
+    [211] = {
         { "Vehicle ID",      "u16" },
+        { "Seat / DriveBy",  "seat_db" },
+        { "Weapon / AddKey", "wep_key" },
+        { "Health",          "u8" },
+        { "Armour",          "u8" },
         { "Left/Right Keys", "u16" },
         { "Up/Down Keys",    "u16" },
         { "Keys",            "u16" },
-        { "Quat W",          "float" },
-        { "Quat X",          "float" },
-        { "Quat Y",          "float" },
-        { "Quat Z",          "float" },
         { "Pos X",           "float" },
         { "Pos Y",           "float" },
-        { "Pos Z",           "float" },
-        { "Vel X",           "float" },
-        { "Vel Y",           "float" },
-        { "Vel Z",           "float" },
-        { "Car Health",      "float" },
-        { "Player Health",   "u8" },
-        { "Player Armour",   "u8" },
-        { "Weapon / Key",    "u8" },
-        { "Siren",           "u8" },
-        { "Landing Gear",    "u8" },
-        { "Trailer ID",      "u16" }
+        { "Pos Z",           "float" }
     },
-    -- ID 203: AimSync
-    [203] = {
+    -- ID 212: ID_SPECTATING_SYNC
+    [212] = {
+        { "Left/Right Keys", "u16" },
+        { "Up/Down Keys",    "u16" },
+        { "Keys",            "u16" },
+        { "Pos X",           "float" },
+        { "Pos Y",           "float" },
+        { "Pos Z",           "float" }
+    }
+    -- ID 203: Входящий ID_AIM_SYNC (2 байта Player ID + 31 байт AimData)
+    = {
+        { "Player ID",       "u16" },
         { "Cam Mode",        "u8" },
         { "Cam Front X",     "float" },
         { "Cam Front Y",     "float" },
@@ -848,25 +966,9 @@ local packet_schemas_out = {
         { "Cam Pos Y",       "float" },
         { "Cam Pos Z",       "float" },
         { "Aim Z",           "float" },
-        { "Cam Ext / Zoom",  "u8" },
-        { "Weapon State",    "u8" },
+        { "Zoom / WepState", "aim_zoom" },
         { "Aspect Ratio",    "u8" }
     },
-    -- ID 206: BulletSync
-    [206] = {
-        { "Hit Type",        "u8" },
-        { "Hit ID",          "u16" },
-        { "Origin X",        "float" },
-        { "Origin Y",        "float" },
-        { "Origin Z",        "float" },
-        { "Target X",        "float" },
-        { "Target Y",        "float" },
-        { "Target Z",        "float" },
-        { "Center X",        "float" },
-        { "Center Y",        "float" },
-        { "Center Z",        "float" },
-        { "Weapon ID",       "u8" }
-    }
 }
 
 local packet_schemas_in = {
@@ -1267,6 +1369,33 @@ local function decode_by_schema(tvb, start_bit, total_bits, schema, parent_tree)
             if val then
                 fields_tree:add(f_field_float, val):set_text(string.format("%s: %.3f", name, val))
                 str_val = string.format("%.2f", val)
+            end
+        elseif ftype == "wep_key" then
+            val = br:read_u8()
+            if val then
+                local add_key = bit.rshift(val, 6)
+                local wep_id  = bit.band(val, 0x3F)
+                fields_tree:add(f_field_uint, wep_id):set_text(
+                    string.format("%s: Weapon=%d, AddKey=%d (raw 0x%02X)", name, wep_id, add_key, val))
+                str_val = string.format("Wep:%d/Key:%d", wep_id, add_key)
+            end
+        elseif ftype == "aim_zoom" then
+            val = br:read_u8()
+            if val then
+                local wep_state = bit.rshift(val, 6)
+                local cam_zoom  = bit.band(val, 0x3F)
+                fields_tree:add(f_field_uint, cam_zoom):set_text(
+                    string.format("%s: Zoom=%d, WepState=%d (raw 0x%02X)", name, cam_zoom, wep_state, val))
+                str_val = string.format("Zoom:%d/State:%d", cam_zoom, wep_state)
+            end
+        elseif ftype == "seat_db" then
+            val = br:read_u8()
+            if val then
+                local drive_by = bit.rshift(val, 6)
+                local seat_id  = bit.band(val, 0x3F)
+                fields_tree:add(f_field_uint, seat_id):set_text(
+                    string.format("%s: Seat=%d, DriveBy=%d (raw 0x%02X)", name, seat_id, drive_by, val))
+                str_val = string.format("Seat:%d/DB:%d", seat_id, drive_by)
             end
         elseif ftype == "str8" then
             local slen = br:read_u8()
