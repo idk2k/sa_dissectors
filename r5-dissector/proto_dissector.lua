@@ -1,6 +1,18 @@
 -- SA-MP 0.3.7 Full Bidirectional Protocol Dissector (Incoming RakNet Frame Parser + Outgoing Scramble Decryptor)
 local samp_proto = Proto("samp_proto", "SA-MP 0.3.7 Protocol")
 
+samp_proto.prefs.server_port = Pref.uint("Server UDP Port", 7777, "Порт сервера SA-MP (по умолчанию 7777)")
+local current_registered_port = 7777
+
+function samp_proto.prefs_changed()
+    local udp_table = DissectorTable.get("udp.port")
+    if current_registered_port ~= samp_proto.prefs.server_port then
+        udp_table:remove(current_registered_port, samp_proto)
+        current_registered_port = samp_proto.prefs.server_port
+        udp_table:add(current_registered_port, samp_proto)
+    end
+end
+
 local f_direction     = ProtoField.string("samp.direction", "Direction")
 local f_checksum      = ProtoField.uint8("samp.checksum", "Packet Checksum", base.HEX)
 local f_calc_checksum = ProtoField.uint8("samp.calc_checksum", "Calculated Checksum", base.HEX)
@@ -722,6 +734,34 @@ local function decrypt_scramble_byte(b)
     end
     return 0
 end
+
+local function decrypt_outgoing_packet(buffer, dst_port)
+    local len = buffer:len()
+    if len < 2 then return nil, false, 0, 0, 0 end
+
+    local key = bit.band(bit.bxor(dst_port, 0xCCCC), 0xFF)
+    local orig_checksum = buffer(0, 1):uint()
+    local calc_sum = 0
+    local hex_chars = {}
+    local odd_flag = false
+
+    for i = 1, len - 1 do
+        local b = buffer(i, 1):uint()
+        if odd_flag then
+            b = bit.bxor(b, key)
+        end
+        odd_flag = not odd_flag
+
+        local plain = decrypt_scramble_byte(b)
+        calc_sum = bit.bxor(calc_sum, bit.band(plain, 0xAA))
+        table.insert(hex_chars, string.format("%02x", plain))
+    end
+
+    local is_valid = (orig_checksum == calc_sum)
+    local dec_tvb = ByteArray.new(table.concat(hex_chars)):tvb("Decrypted SA-MP Outgoing Packet")
+    return dec_tvb, is_valid, orig_checksum, calc_sum, key
+end
+
 
 -- ==========================================
 -- Декларативные схемы пакетов и RPC (легко расширять!)
@@ -1755,7 +1795,8 @@ function samp_proto.dissector(buffer, pinfo, tree)
     end
 
        -- 1. ВХОДЯЩИЕ ПАКЕТЫ ОТ СЕРВЕРА (src_port == 7777)
-    if pinfo.src_port == 7777 then
+    if pinfo.src_port == samp_proto.prefs.server_port then
+
         pinfo.cols.protocol = "SA-MP In"
 
         local subtree = tree:add(samp_proto, buffer(), "SA-MP Incoming Packet")
@@ -1881,30 +1922,23 @@ function samp_proto.dissector(buffer, pinfo, tree)
     -- 2. ИСХОДЯЩИЕ ПАКЕТЫ К СЕРВЕРУ (Скремблер + разбор фрейма RakNet)
     pinfo.cols.protocol = "SA-MP Out"
 
-    local dst_port = pinfo.dst_port
-    local key = bit.band(bit.bxor(dst_port, 0xCCCC), 0xFF)
+    local dec_tvb, is_valid, orig_checksum, calc_sum, key
 
-    local orig_checksum = buffer(0, 1):uint()
-    local calc_sum = 0
-    local hex_chars = {}
-    local odd_flag = false
-
-    for i = 1, len - 1 do
-        local b = buffer(i, 1):uint()
-        if odd_flag then
-            b = bit.bxor(b, key)
-        end
-        odd_flag = not odd_flag
-
-        local plain = decrypt_scramble_byte(b)
-        calc_sum = bit.bxor(calc_sum, bit.band(plain, 0xAA))
-        table.insert(hex_chars, string.format("%02x", plain))
+    -- Если пакет из нашего samp_unpacked.pcap (начинается с 0xFE), он уже расшифрован!
+    if buffer(0, 1):uint() == 0xFE then
+        dec_tvb = buffer
+        is_valid = true
+        orig_checksum = 0
+        calc_sum = 0
+        key = 0
+    else
+        dec_tvb, is_valid, orig_checksum, calc_sum, key = decrypt_outgoing_packet(buffer, pinfo.dst_port)
+        if not dec_tvb then return end
     end
 
-    local is_valid = (orig_checksum == calc_sum)
-    local dec_tvb = ByteArray.new(table.concat(hex_chars)):tvb("Decrypted SA-MP Outgoing Packet")
-
     local subtree = tree:add(samp_proto, buffer(), "SA-MP Outgoing Packet (Decrypted)")
+
+
     subtree:add(f_direction, "Client -> Server"):set_generated()
     subtree:add(f_checksum, buffer(0, 1))
     subtree:add(f_calc_checksum, calc_sum):set_generated()
@@ -1978,15 +2012,13 @@ end
 
 
 
-
 local udp_port = DissectorTable.get("udp.port")
-udp_port:add(7777, samp_proto)
+udp_port:add(current_registered_port, samp_proto)
 
 -- =========================================================================
 -- ЭКСПОРТ ВСЕХ РАСПАКОВАННЫХ И СКЛЕЕННЫХ ФРЕЙМОВ В ОТДЕЛЬНЫЙ PCAP
 -- =========================================================================
 
--- Построитель минимального заголовка Ethernet + IPv4 + UDP для Dumper (WTAP_ENCAP_ETHERNET)
 local function build_udp_pcap_packet(src_ip_str, dst_ip_str, src_port, dst_port, payload_bytes)
     local function ip_to_bytes(ip)
         local b1, b2, b3, b4 = ip:match("(%d+)%.(%d+)%.(%d+)%.(%d+)")
@@ -2015,20 +2047,16 @@ local function build_udp_pcap_packet(src_ip_str, dst_ip_str, src_port, dst_port,
     return ByteArray.new(eth .. ip_hdr .. udp_hdr .. payload_str, true)
 end
 
--- Оборачиваем сырой SA-MP фрейм в минимальный валидный заголовок RakNet (1 фрейм в пакете),
--- чтобы при открытии samp_unpacked.pcap наш же диссектор samp_proto его сразу прочитал!
 local function wrap_single_raknet_frame(frame_bytes)
-    -- Магический байт 0xFE означает "уже распакованный одиночный фрейм SA-MP"
     local out = ByteArray.new("FE")
     out:append(frame_bytes)
     return out
 end
 
-
-
 local export_dumper = nil
 local export_active = false
-local export_count = 0
+local export_count_in = 0
+local export_count_out = 0
 local export_split_buf = {}
 
 local function unpack_to_pcap_menu()
@@ -2042,10 +2070,10 @@ local function unpack_to_pcap_menu()
     end
 
     export_active = true
-    export_count = 0
+    export_count_in = 0
+    export_count_out = 0
     export_split_buf = {}
 
-    -- Запускаем проход по всем пакетам текущего дампа
     retap_packets()
 
     export_dumper:flush()
@@ -2056,41 +2084,61 @@ local function unpack_to_pcap_menu()
 
     local win = TextWindow.new("SA-MP Unpack Complete")
     win:set(string.format(
-        "Распаковка завершена успешно!\n\nСохранено отдельных фреймов: %d\nПуть к файлу:\n%s\n\nОткройте этот файл в Wireshark (File -> Open), чтобы увидеть каждый фрейм на отдельной строке.",
-        export_count, out_path
+        "Распаковка завершена успешно!\n\nВходящих фреймов (Server -> Client): %d\nИсходящих фреймов (Client -> Server): %d\nВсего сохранено: %d\n\nПуть к файлу:\n%s\n\nОткройте этот файл в Wireshark (File -> Open).",
+        export_count_in, export_count_out, export_count_in + export_count_out, out_path
     ))
 end
 
--- Листенер перебирает все UDP-пакеты порта 7777 при вызове retap_packets()
-local export_tap = Listener.new("udp", "udp.port == 7777")
+-- Листенер без жесткого фильтра по порту — проверяем актуальный порт из настроек внутри
+local export_tap = Listener.new("udp")
 function export_tap.packet(pinfo, tvb)
     if not export_active or not export_dumper then return end
 
-    -- Извлекаем UDP payload из полного кадра
-    local udp_len = tvb:len()
-    -- Listener("udp") передаёт в tvb весь кадр с уровня Ethernet/IP, находим смещение UDP-данных:
+    local srv_port = samp_proto.prefs.server_port
     local src_port = pinfo.src_port
     local dst_port = pinfo.dst_port
+
+    if src_port ~= srv_port and dst_port ~= srv_port then
+        return
+    end
+
     local src_ip = tostring(pinfo.src)
     local dst_ip = tostring(pinfo.dst)
 
-    -- Находим начало UDP payload по длине (последние len байт кадра, если нет Ethernet padding)
-    -- Надёжнее взять через Field extractor или по заголовкам IPv4:
+    -- Поддержка Ethernet (14 байт) + IPv4
+    if tvb:len() < 34 then return end
     local ip_hdr_len = bit.band(tvb(14, 1):uint(), 0x0F) * 4
     local udp_offset = 14 + ip_hdr_len + 8
     if udp_offset >= tvb:len() then return end
 
     local payload_tvb = tvb(udp_offset):tvb("UDP Payload")
-    if payload_tvb:len() <= 7 then return end
+    if payload_tvb:len() < 2 then return end
 
-    local frames = parse_all_raknet_frames(payload_tvb)
+    -- Пропускаем Query-пакеты лаунчера
+    if payload_tvb:len() >= 4 and payload_tvb(0, 4):string() == "SAMP" then
+        return
+    end
+
+    local is_incoming = (src_port == srv_port)
+    local work_tvb = payload_tvb
+
+    -- Если пакет исходящий (Client -> Server), сначала снимаем скремблер!
+    if not is_incoming then
+        local dec_tvb, is_valid = decrypt_outgoing_packet(payload_tvb, dst_port)
+        if not dec_tvb or not is_valid then
+            return
+        end
+        work_tvb = dec_tvb
+    end
+
+    local frames = parse_all_raknet_frames(work_tvb)
     for _, fr in ipairs(frames) do
         local ready_bytes = nil
 
         if not fr.is_split then
             ready_bytes = fr.frame_tvb:bytes()
         else
-            local key = string.format("%s:%d_%d", src_ip, src_port, fr.split_id)
+            local key = string.format("%s:%d->%s:%d_%d", src_ip, src_port, dst_ip, dst_port, fr.split_id)
             if not export_split_buf[key] then
                 export_split_buf[key] = { count = fr.split_count, received = 0, chunks = {} }
             end
@@ -2113,7 +2161,11 @@ function export_tap.packet(pinfo, tvb)
             local wrapped = wrap_single_raknet_frame(ready_bytes)
             local raw_pkt = build_udp_pcap_packet(src_ip, dst_ip, src_port, dst_port, wrapped)
             export_dumper:dump(pinfo.abs_ts, PseudoHeader.none(), raw_pkt)
-            export_count = export_count + 1
+            if is_incoming then
+                export_count_in = export_count_in + 1
+            else
+                export_count_out = export_count_out + 1
+            end
         end
     end
 end
