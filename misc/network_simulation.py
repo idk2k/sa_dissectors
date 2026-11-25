@@ -4,8 +4,6 @@ import time
 import hashlib
 import secrets
 
-
-# 1. Вставь сюда 256 байт из enc_table твоего Lua-диссектора (samp_proto.lua)
 ENC_TABLE  = [
     0x27,0x69,0xFD,0x87,0x60,0x7D,0x83,0x02,0xF2,0x3F,0x71,0x99,0xA3,0x7C,0x1B,0x9D,
     0x76,0x30,0x23,0x25,0xC5,0x82,0x9B,0xEB,0x1E,0xFA,0x46,0x4F,0x98,0xC9,0x37,0x88,
@@ -22,9 +20,8 @@ ENC_TABLE  = [
     0x5A,0x4B,0xE8,0xCA,0xCF,0x9F,0xE3,0xAC,0xAA,0x14,0x5B,0x5F,0x0A,0x3B,0x77,0x92,
     0x09,0x15,0x4E,0x94,0xAD,0x17,0x64,0x52,0xD3,0x38,0x43,0x0D,0x0C,0x07,0x3C,0x1D,
     0xAF,0xED,0xE7,0x08,0xB7,0x03,0xE6,0x8E,0xAB,0x91,0x89,0x3E,0x2C,0x96,0x42,0xD9,
-    0x78,0xDF,0xD0,0x57,0x5D,0x84,0x41,0x7E,0xCE,0xF7,0x32,0xC3,0xD5,0x20,0x0B,0xA7]
-
-
+    0x78,0xDF,0xD0,0x57,0x5D,0x84,0x41,0x7E,0xCE,0xF7,0x32,0xC3,0xD5,0x20,0x0B,0xA7
+]
 
 MEM_100 = bytes.fromhex(
     "89 50 4E 47 0D 0A 1A 0A 00 00 00 0D 49 48 44 52 00 00 01 00 00 00 00 80 "
@@ -33,10 +30,10 @@ MEM_100 = bytes.fromhex(
     "00 20 63 48 52 4D 00 00 7A 25 00 00 80 83 00 00 F9 FF 00 00 80 E9 00 00 "
     "75 30 00 00"
 )
+
 MEM_20_4D3AA0 = bytes.fromhex(
     "FF 25 34 39 4D 00 90 90 90 90 56 57 50 8B 44 24 14 8D 0C 80"
 )
-
 
 class BitWriter:
     def __init__(self):
@@ -122,9 +119,6 @@ class BitWriter:
             self.write_bit(0)
             self.write_u8(b0)
 
-
-
-
     def get_bytes(self) -> bytes:
         while len(self.bits) % 8 != 0:
             self.bits.append(0)
@@ -135,7 +129,6 @@ class BitWriter:
                 byte_val = (byte_val << 1) | b
             out.append(byte_val)
         return bytes(out)
-
 
 def generate_samp_r5_auth_key(challenge_str: str) -> str:
     sha1_digest = hashlib.sha1(challenge_str.encode("ascii")).digest()
@@ -156,10 +149,9 @@ def generate_samp_r5_auth_key(challenge_str: str) -> str:
 
     return buf.hex().upper()
 
-
 def scramble_outgoing(payload: bytes, dst_port: int) -> bytes:
     if len(ENC_TABLE) != 256:
-        raise ValueError("Заполни ENC_TABLE всеми 256 байтами из твоего Lua-скрипта!")
+        raise ValueError("Fill ENC_TABLE!")
 
     key = (dst_port ^ 0xCCCC) & 0xFF
     checksum = 0
@@ -177,7 +169,6 @@ def scramble_outgoing(payload: bytes, dst_port: int) -> bytes:
     out[0] = checksum
     return bytes(out)
 
-
 def build_frame(data: bytes, msg_num: int, ordered: bool = False, order_idx: int = 0) -> bytes:
     bw = BitWriter()
     bw.write_bit(0)                         # has_acks = 0
@@ -191,14 +182,11 @@ def build_frame(data: bytes, msg_num: int, ordered: bool = False, order_idx: int
     else:
         bw.write_bits(4, 3)                 # Reliable (100)
         bw.write_bit(0)                     # is_split = 0
-        bw.write_bit(0)                     # выравнивающий бит (даёт 0x43 0x80)
+        bw.write_bit(0)                     # bit alignment (0x43 0x80)
         bw.write_compressed_u16(len(data) * 8)
     bw.align_to_byte()
     bw.write_bytes(data)
     return bw.get_bytes()
-
-
-
 
 def build_ack_packet(recv_msg_num: int) -> bytes:
     bw = BitWriter()
@@ -208,16 +196,15 @@ def build_ack_packet(recv_msg_num: int) -> bytes:
     bw.write_u16_le(recv_msg_num)
     return bw.get_bytes()
 
-
 def generate_samp_r5_gpci(seed_str: str = None, multiplier: int = 1001) -> bytes:
-    """Точная генерация 43-символьного GPCI (сортировка бит + умножение на a3 в Little-Endian)."""
+    """43-GPCI (bit sorting + multiply by a3 in Little-Endian)."""
     if seed_str is None:
         seed_str = secrets.token_hex(16)
 
     while True:
         digest = bytearray(hashlib.sha1(seed_str.encode("ascii")).digest())
 
-        # 1. Побитовая сортировка 2-битных пар (sub_1005FFA0, строки 43-59)
+        # 1. sorting 2-bit bairs (sub_1005FFA0)
         for i in range(20):
             v4 = digest[i]
             v5 = v4 & 3
@@ -229,10 +216,10 @@ def generate_samp_r5_gpci(seed_str: str = None, multiplier: int = 1001) -> bytes
             v10 = (v7 | (4 * v8)) if v7 <= v8 else (v8 | (4 * v7))
             digest[i] = v9 | (16 * v10)
 
-        # 2. Переводим 20 байт в 160-битное число (Little-Endian, как хранится в DWORD v8[0..4])
+        # 2. Translate 20 byte to 160-bit number (Little-Endian, like in DWORD v8[0..4])
         big_num = int.from_bytes(digest, byteorder="little")
 
-        # 3. Умножаем на множитель ревизии (sub_100598C0) и переводим в HEX
+        # 3. Multiply by factor of revision (sub_100598C0) and transform to HEX
         result_hex = f"{big_num * multiplier:X}"
 
         if len(result_hex) == 43:
@@ -252,22 +239,21 @@ def build_client_join_rpc(nickname: str, challenge: int, rpc_id: int = 25) -> by
     body += struct.pack("<I", challenge)                  # Challenge Response
     body += struct.pack("<B", len(gpci)) + gpci           # GPCI (43)
     body += struct.pack("<B", len(ver_str)) + ver_str     # Client Version (8): "0.3.7-R5"
-    body += struct.pack("<I", challenge)                  # Обязательный 2-й challenge для R5
+    body += struct.pack("<I", challenge)                  # Neccessary 2-й challenge for R5
 
     bit_len = len(body) * 8
 
     bw = BitWriter()
     bw.write_u8(0x14)                                     # ID_RPC (20)
     bw.write_u8(rpc_id)                                   # RPC ID (25)
-    bw.write_compressed_u32(bit_len)                      # Сжатая длина в битах (даёт cf 00 5b...)
+    bw.write_compressed_u32(bit_len)                      # Compressed length in bits (cf 00 5b...)
     bw.write_bytes(body)                                  # Без align_to_byte()!
     return bw.get_bytes()
 
-
 def run_interactive_bot():
-    host = input("IP сервера: ").strip() or "127.0.0.1"
-    port = int(input("Порт сервера: ").strip() or "7777")
-    nickname = input("Ник бота [TestBot_R5]: ").strip() or "TestBot_R5"
+    host = input("Server IP: ").strip() or "127.0.0.1"
+    port = int(input("Server PORT: ").strip() or "7777")
+    nickname = input("Bot Nickname [TestBot_R5]: ").strip() or "TestBot_R5"
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(3.0)
@@ -278,40 +264,36 @@ def run_interactive_bot():
     def send_raw(raw_bytes: bytes, label: str):
         pkt = scramble_outgoing(raw_bytes, port)
         sock.sendto(pkt, addr)
-        print(f"[->] Отправлено ({label}) [plain={raw_bytes.hex(' ')}] -> [enc={pkt.hex(' ')}]")
+        print(f"[->] Sent ({label}) [plain={raw_bytes.hex(' ')}] -> [enc={pkt.hex(' ')}]")
 
-
-    # --- ШАГ 1: Unconnected Handshake (18 69 69 -> Cookie ^ 0x6969 -> Reply) ---
-    input("\n[Шаг 1] Нажми Enter, чтобы выполнить рукопожатие...")
+    # Step 1
+    input("\n[Шаг 1] Press Enter, for starting handshake...")
     send_raw(b"\x18\x69\x69", "ID_OPEN_CONNECTION_REQUEST")
 
     for _ in range(4):
         resp, _ = sock.recvfrom(2048)
-        print(f"[<-] Ответ сервера: {resp.hex(' ')}")
+        print(f"[<-] Server response: {resp.hex(' ')}")
 
         if resp.startswith(b"\x19"):  # ID_OPEN_CONNECTION_REPLY (25)
-            print("[+] Рукопожатие успешно завершено (получен 0x19)!")
+            print("[+] Handshake finished (received 0x19)!")
             break
 
         if resp.startswith(b"\x1a") and len(resp) >= 3:
             c1, c2 = resp[1], resp[2]
             masked_cookie = bytes([c1 ^ 0x69, c2 ^ 0x69])
-            print(f"[*] Получена cookie: {resp[1:3].hex(' ')} -> с маской 0x6969: {masked_cookie.hex(' ')}")
+            print(f"[*] Received cookie: {resp[1:3].hex(' ')} -> с маской 0x6969: {masked_cookie.hex(' ')}")
             send_raw(b"\x18" + masked_cookie, "ID_OPEN_CONNECTION_REQUEST + Masked Cookie")
     else:
-        print("[-] Не удалось получить ID_OPEN_CONNECTION_REPLY (0x19).")
+        print("[-] Cant get ID_OPEN_CONNECTION_REPLY (0x19).")
         return
 
-
-
-    # --- ШАГ 2: ID_CONNECTION_REQUEST (11) ---
-    #input("\n[Шаг 2] Нажми Enter, чтобы отправить ID_CONNECTION_REQUEST (0x0B)...")
+    # Step 2
     send_raw(build_frame(b"\x0B", msg_num, ordered=False), "ID_CONNECTION_REQUEST")
     msg_num += 1
 
-    # --- ШАГ 3: Приём ID_AUTH_KEY (12) и отправка ответа ---
+    # Step 3
     data, _ = sock.recvfrom(2048)
-    print(f"[<-] Пакет от сервера (AuthKey): {data.hex(' ')}")
+    print(f"[<-] Packet from Server (AuthKey): {data.hex(' ')}")
     send_raw(build_ack_packet(0), "Pure ACK (Msg 0)")
 
     if b"\x0c" in data:
@@ -319,31 +301,28 @@ def run_interactive_bot():
         key_len = data[idx + 1]
         raw_challenge = data[idx + 2 : idx + 2 + key_len]
         challenge_str = raw_challenge.rstrip(b"\x00").decode("ascii")
-        print(f"[*] Получен ID_AUTH_KEY challenge (len={key_len}): '{challenge_str}'")
+        print(f"[*] Received ID_AUTH_KEY challenge (len={key_len}): '{challenge_str}'")
 
         auth_resp = generate_samp_r5_auth_key(challenge_str)
-        print(f"[*] Сгенерирован ответ R5: {auth_resp}")
+        print(f"[*] Responce generated R5: {auth_resp}")
 
         auth_pkt = b"\x0c" + bytes([len(auth_resp)]) + auth_resp.encode("ascii")
         send_raw(build_frame(auth_pkt, msg_num, ordered=False), "ID_AUTH_KEY Response")
         msg_num += 1
 
-
-    # --- ШАГ 4: Приём ID_CONNECTION_REQUEST_ACCEPTED (34) -> отправка 30 и ClientJoin (25) ---
     server_challenge = 0
     for _ in range(3):
         data, _ = sock.recvfrom(2048)
-        print(f"[<-] Пакет от сервера: {data.hex(' ')}")
+        print(f"[<-] Packet from Server: {data.hex(' ')}")
         if b"\x22" in data:
             idx = data.index(b"\x22")
             if idx + 13 <= len(data):
                 _, _, player_id, raw_chal = struct.unpack("<IHHI", data[idx + 1 : idx + 13])
                 server_challenge = raw_chal ^ 0xFD9
-                print(f"[*] Принято! PlayerID={player_id}, Challenge=0x{server_challenge:08X}")
+                print(f"[*] Accepted! PlayerID={player_id}, Challenge=0x{server_challenge:08X}")
                 send_raw(build_ack_packet(1), "Pure ACK (Msg 1)")
                 break
 
-    #input(f"\n[Шаг 4] Нажми Enter, чтобы отправить ID_NEW_INCOMING_CONNECTION (30) и ClientJoin ('{nickname}')...")
     inc_pkt = b"\x1E" + socket.inet_aton(host) + struct.pack("<H", port)
     send_raw(build_frame(inc_pkt, msg_num, ordered=False), "ID_NEW_INCOMING_CONNECTION")
     msg_num += 1
@@ -354,19 +333,19 @@ def run_interactive_bot():
 
     order_idx += 1
 
-    print("\n[*] Входим в цикл чтения ответов сервера (Ctrl+C для выхода)...")
+    print("\n[*] Entering of reading server responses... (Ctrl+C for exit)...")
     while True:
         try:
             data, _ = sock.recvfrom(2048)
             print(f"[<-] {len(data)} байт: {data.hex(' ')}")
 
-            # Если это обычный пакет с фреймом (первый бит has_acks == 0), извлекаем msg_num и шлём ACK
+            # Normal packet (first bit has_acks == 0), retrieve msg_num and send ACK
             if len(data) >= 3 and (data[0] & 0x80) == 0:
                 b0, b1, b2 = data[0], data[1], data[2]
                 srv_msg_num = ((b0 & 0x7F) << 1) | (b1 >> 7) | (((b1 & 0x7F) << 1 | (b2 >> 7)) << 8)
                 send_raw(build_ack_packet(srv_msg_num), f"ACK (Srv Msg {srv_msg_num})")
 
-            # Если пришёл ID_INTERNAL_PING (0x06 + 4 байта времени), отвечаем ID_CONNECTED_PONG (0x09)
+            # ID_INTERNAL_PING (0x06 + 4 bytes of time), respond with ID_CONNECTED_PONG (0x09)
             if b"\x06" in data:
                 idx = data.index(b"\x06")
                 if idx + 5 <= len(data):
@@ -376,10 +355,7 @@ def run_interactive_bot():
                     send_raw(build_frame(pong_pkt, msg_num, ordered=False), "ID_CONNECTED_PONG")
                     msg_num += 1
         except socket.timeout:
-            print("[.] Ожидание пакетов...")
-
-
-
+            print("[.] Waiting for packets...")
 
 if __name__ == "__main__":
     run_interactive_bot()
