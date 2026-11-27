@@ -2,7 +2,7 @@
 
 Custom Wireshark Lua dissector suite for analyzing SA network traffic, including support for **0.3.7-R5** (`r5-dissector`).
 
-## Features
+## General Features
 
 - **RakNet Packet & Frame Parsing**: Parses bundled RakNet frames (`parse_all_raknet_frames`), handles split-packet reassembly (`process_split_frame`), and decodes `ACK` acknowledgments (`decode_raknet_acks`).
 - **Outgoing Packet Decryption**: Decrypts scrambled outgoing SA-MP client packets (`decrypt_outgoing_packet`, `decrypt_scramble_byte`).
